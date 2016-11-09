@@ -27,34 +27,42 @@ unspecified Unspecified = True
 unspecified _ = False
 
 getRangeDefault :: (Double,Double) -> Range -> (Double, Double)
-getRangeDefault def Unspecified = def
 getRangeDefault _ (Range r) = r
+getRangeDefault def Unspecified = def
 
-data Plot = Plot { func :: Double -> Double
-                 , name :: Maybe String
-                 , xRange :: Range
-                 , yRange :: Range
-                 , xN :: Int
-                 , yN :: Int }
-instance Show Plot where
-    show (Plot {..})
-        = (fromMaybe "" $ (<> ":") <$> name)
-        <>  " x " <> show xRange <> " y " <> show yRange
+newtype Plot = Plot (Double -> Double)
 
-plt :: Plot -> PlotImg
-plt p@(Plot {..}) =
+data PlotCfg = PlotCfg { name :: Maybe String
+                       , xRange :: Range
+                       , yRange :: Range
+                       , xN :: Int
+                       , yN :: Int }
+
+defaultCfg :: PlotCfg
+defaultCfg = PlotCfg Nothing (Range ((-1), 1)) Unspecified 60 30
+withXRange :: PlotCfg -> Range -> PlotCfg
+withXRange p x = p{xRange = x}
+withYRange :: PlotCfg -> Range -> PlotCfg
+withYRange p y = p{yRange = y}
+withWidth :: PlotCfg -> Int -> PlotCfg
+withWidth p w = p{xN = w}
+withHeight :: PlotCfg -> Int -> PlotCfg
+withHeight p h = p{yN = h}
+
+plt :: Plot -> PlotCfg -> (PlotImg, PlotCfg)
+plt (Plot func) c@(PlotCfg {..}) =
     let (x0, x1) = getRangeDefault ((-1), 1) xRange
         dx = (x1-x0) / (fromIntegral xN)
         values = map func . take xN $ [x0, x0+dx..]
-        yMax = maximum values
-        yMin = minimum values
+        (yMax, yMin) = getRangeDefault (maximum values, minimum values) yRange
         dy = if yMax == yMin
                 then 1
                 else (yMax - yMin) / fromIntegral yN
         cutY y0 = mconcatMap (toDot (y0-dy, y0)) values
+        img = PlotImg . toLazyByteString . mconcatMap ((<> char7 '\n') . cutY)
+                . take (yN+2) $ [yMax+dy, yMax..]
         in
-    PlotImg . toLazyByteString . mconcatMap ((<> char7 '\n') . cutY)
-        . take (yN+2) $ [yMax+dy, yMax..]
+    (img, c{yRange = Range (yMax, yMin)})
 
 plot :: Double
      -> Double
