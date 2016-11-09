@@ -1,4 +1,8 @@
-module Plot where
+module Plot ( Plot
+            , plot
+            , draw
+    ) where
+
 import Prelude hiding (putStr, unlines)
 import Data.List hiding (unlines)
 import Data.Monoid
