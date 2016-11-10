@@ -3,8 +3,14 @@ module Plot( PlotImg
            , Plot (..)
            , Range (..)
            , plot
-           , plt
+           , plotWith
+           , plotWithDefault
            , draw
+           , defaultCfg
+           , withXRange
+           , withYRange
+           , withWidth
+           , withHeight
     ) where
 
 import Prelude hiding (putStr, unlines)
@@ -36,7 +42,7 @@ data PlotCfg = PlotCfg { name :: Maybe String
                        , xRange :: Range
                        , yRange :: Range
                        , xN :: Int
-                       , yN :: Int }
+                       , yN :: Int } deriving (Show)
 
 defaultCfg :: PlotCfg
 defaultCfg = PlotCfg Nothing (Range ((-1), 1)) Unspecified 60 30
@@ -49,8 +55,8 @@ withWidth p w = p{xN = w}
 withHeight :: PlotCfg -> Int -> PlotCfg
 withHeight p h = p{yN = h}
 
-plt :: Plot -> PlotCfg -> (PlotImg, PlotCfg)
-plt (Plot func) c@(PlotCfg {..}) =
+plot :: Plot -> PlotCfg -> (PlotImg, PlotCfg)
+plot (Plot func) c@(PlotCfg {..}) =
     let (x0, x1) = getRangeDefault ((-1), 1) xRange
         dx = (x1-x0) / (fromIntegral xN)
         values = map func . take xN $ [x0, x0+dx..]
@@ -64,30 +70,18 @@ plt (Plot func) c@(PlotCfg {..}) =
         in
     (img, c{yRange = Range (yMax, yMin)})
 
-plot :: Double
-     -> Double
-     -> Int
-     -> Int
-     -> (Double -> Double)
-     -> PlotImg
-plot x0 x1 n h f =
-    let dx = (x1-x0) / (fromIntegral n)
-        values = map f . take n $ [x0, x0+dx..]
-        yMax = maximum values
-        yMin = minimum values
-        dy = if yMax == yMin
-                then 1
-                else (yMax - yMin) / fromIntegral h
-        cutY y0 = mconcatMap (toDot (y0-dy, y0)) values
-        in
-    PlotImg . toLazyByteString . mconcatMap ((<> char7 '\n') . cutY)
-        . take (h+2) $ [yMax+dy, yMax..]
+plotWith :: PlotCfg -> Plot -> (PlotImg, PlotCfg)
+plotWith = flip plot
+plotWithDefault :: Plot -> (PlotImg, PlotCfg)
+plotWithDefault = plotWith defaultCfg
 
 mconcatMap :: Monoid c => (a -> c) -> [a] -> c
 mconcatMap f = mconcat . map f
 
-draw :: PlotImg -> IO ()
-draw (PlotImg p) = putStr p
+draw :: (PlotImg, PlotCfg) -> IO ()
+draw ((PlotImg p), cfg) = do
+    putStr p
+    print cfg
 
 toDot :: (Double,Double) -> Double -> Builder
 toDot (l,h) x
